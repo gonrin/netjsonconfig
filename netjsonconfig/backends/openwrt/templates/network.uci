@@ -1,6 +1,16 @@
 {% if not is_empty %}
     package network
+	
+    {% if globals %}
+        config globals 'globals'
+            {% for key, value in globals.items() %}
+                {% if value not in ['', None] %}
+                    option {{ key }} '{{ value }}'
+                {% endif %}
+            {% endfor %}
 
+    {% endif %}
+    
     {% for interface in interfaces %}
         config interface '{{ interface.name }}'
             {% for key, value in interface.items() %}

@@ -12,6 +12,14 @@ class NetworkRenderer(BaseRenderer):
     Renders content importable with:
         uci import network
     """
+    def _get_globals(self):
+        globals = self.config.get('globals', {}).copy()
+        if globals:
+            globals.update({
+                'ula_prefix': globals.get('ula_prefix', None),
+            })
+        return sorted_dict(globals)
+        
     def _get_interfaces(self):
         """
         converts interfaces object to UCI interface directives
@@ -185,6 +193,7 @@ class NetworkRenderer(BaseRenderer):
             uci_switch['vlan'] = [sorted_dict(vlan) for vlan in uci_switch['vlan']]
             uci_switches.append(uci_switch)
         return uci_switches
+    
 
 
 class SystemRenderer(BaseRenderer):
@@ -196,10 +205,11 @@ class SystemRenderer(BaseRenderer):
         general = self.config.get('general', {}).copy()
         if general:
             timezone_human = general.get('timezone', 'Coordinated Universal Time')
-            timezone_value = timezones[timezone_human]
+            #timezone_value = timezones[timezone_human]
             general.update({
                 'hostname': general.get('hostname', 'OpenWRT'),
-                'timezone': timezone_value,
+                #'timezone': timezone_value,
+                'timezone': timezone_human,
             })
         return sorted_dict(general)
 
@@ -222,10 +232,12 @@ class WirelessRenderer(BaseRenderer):
         radios = self.config.get('radios', [])
         uci_radios = []
         for radio in radios:
+        	
             uci_radio = radio.copy()
             # rename tx_power to txpower
-            uci_radio['txpower'] = radio['tx_power']
-            del uci_radio['tx_power']
+            if uci_radio.get('tx_power'):
+            	uci_radio['txpower'] = radio['tx_power']
+            	del uci_radio['tx_power']
             # rename driver to type
             uci_radio['type'] = radio['driver']
             del uci_radio['driver']
@@ -277,10 +289,8 @@ class WirelessRenderer(BaseRenderer):
             wireless = wifi_interface['wireless']
             # prepare UCI wifi-iface directive
             uci_wifi = wireless.copy()
-            # inherit "disabled" attribute if present
-            uci_wifi['disabled'] = wifi_interface.get('disabled')
             # add ifname
-            uci_wifi['ifname'] = wifi_interface['name']
+            #uci_wifi['ifname'] = wifi_interface['name']
             # rename radio to device
             uci_wifi['device'] = wireless['radio']
             del uci_wifi['radio']

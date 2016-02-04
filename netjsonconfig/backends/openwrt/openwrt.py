@@ -3,6 +3,7 @@ import re
 import six
 import gzip
 import tarfile
+import zipfile
 from io import BytesIO
 from copy import deepcopy
 
@@ -144,34 +145,12 @@ class OpenWrt(object):
         return [r.get_package() for r in cls.renderers]
 
     def generate(self):
-        """
-        Returns a ``BytesIO`` instance representing an in-memory tar.gz archive
-        containing the native router configuration.
+        
+        zip = zipfile.ZipFile('zipfile_writestr.zip',mode='w',compression=zipfile.ZIP_DEFLATED,)
+        self._generate_contents(zip)
+        
 
-        The archive can be installed in OpenWRT with the following command:
-
-        ``sysupgrade -r <archive>``
-
-        :returns: in-memory tar.gz archive, instance of ``BytesIO``
-        """
-        tar_bytes = BytesIO()
-        tar = tarfile.open(fileobj=tar_bytes, mode='w')
-        self._generate_contents(tar)
-        self._process_files(tar)
-        tar.close()
-        tar_bytes.seek(0)  # set pointer to beginning of stream
-        # `mtime` parameter of gzip file must be 0, otherwise any checksum operation
-        # would return a different digest even when content is the same.
-        # to achieve this we must use the python `gzip` library because the `tarfile`
-        # library does not seem to offer the possibility to modify the gzip `mtime`.
-        gzip_bytes = BytesIO()
-        gz = gzip.GzipFile(fileobj=gzip_bytes, mode='wb', mtime=0)
-        gz.write(tar_bytes.getvalue())
-        gz.close()
-        gzip_bytes.seek(0)  # set pointer to beginning of stream
-        return gzip_bytes
-
-    def _generate_contents(self, tar):
+    def _generate_contents(self, zip):
         """
         Adds configuration files to tarfile instance.
 
@@ -179,6 +158,7 @@ class OpenWrt(object):
         :returns: None
         """
         uci = self.render(files=False)
+        
         # create a list with all the packages (and remove empty entries)
         packages = re.split('package ', uci)
         if '' in packages:
@@ -188,9 +168,8 @@ class OpenWrt(object):
             lines = package.split('\n')
             package_name = lines[0]
             text_contents = '\n'.join(lines[2:])
-            self._add_file(tar=tar,
-                           name='etc/config/{0}'.format(package_name),
-                           contents=text_contents)
+            zip.writestr('etc/config/{0}'.format(package_name), text_contents.encode('utf-8'))
+            
 
     def write(self, name, path='./'):
         """
@@ -200,52 +179,11 @@ class OpenWrt(object):
         :param path: directory where the file will be written to, defaults to ``./``
         :returns: None
         """
-        byte_object = self.generate()
-        file_name = '{0}.tar.gz'.format(name)
+        
+        file_name = '{0}.zip'.format(name)
         if not path.endswith('/'):
             path += '/'
-        f = open('{0}{1}'.format(path, file_name), 'wb')
-        f.write(byte_object.getvalue())
-        f.close()
-
-    def _process_files(self, tar):
-        """
-        Adds files specified in self.config['files'] to tarfile instance.
-
-        :param tar: tarfile instance
-        :returns: None
-        """
-        # insert additional files
-        for file_item in self.config.get('files', []):
-            contents = file_item['contents']
-            path = file_item['path']
-            # join lines if contents is a list
-            if isinstance(contents, list):
-                contents = '\n'.join(contents)
-            # remove leading slashes from path
-            if path.startswith('/'):
-                path = path[1:]
-            self._add_file(tar=tar,
-                           name=path,
-                           contents=contents,
-                           mode=file_item.get('mode', DEFAULT_FILE_MODE))
-
-    def _add_file(self, tar, name, contents, mode=DEFAULT_FILE_MODE):
-        """
-        Adds a single file in tarfile instance.
-
-        :param tar: tarfile instance
-        :param name: string representing filename or path
-        :param contents: string representing file contents
-        :param mode: string representing file mode, defaults to 644
-        :returns: None
-        """
-        byte_contents = BytesIO(contents.encode('utf8'))
-        info = tarfile.TarInfo(name=name)
-        info.size = len(contents)
-        # mtime must be 0 or any checksum operation
-        # will return a different digest even when content is the same
-        info.mtime = 0
-        info.type = tarfile.REGTYPE
-        info.mode = int(mode, 8)  # permissions converted to decimal notation
-        tar.addfile(tarinfo=info, fileobj=byte_contents)
+       
+        zip = zipfile.ZipFile('{0}{1}'.format(path, file_name),mode='w',compression=zipfile.ZIP_DEFLATED,)
+        self._generate_contents(zip)
+        zip.close()

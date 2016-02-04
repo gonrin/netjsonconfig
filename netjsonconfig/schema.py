@@ -185,7 +185,8 @@ schema = {
                                                 "wpa_enterprise",
                                                 "wpa2_enterprise",
                                                 "wpa_enterprise_mixed",
-                                                "wps"
+                                                "wps",
+                                                "none"
                                             ]
                                         },
                                         "key": {
@@ -316,14 +317,17 @@ schema = {
                 "required": [
                     "name",
                     "channel",
-                    "channel_width",
-                    "tx_power"
+                    "channel_width"
+                    #"tx_power"
                 ],
                 "properties": {
                     "name": {
                         "type": "string"
                     },
                     "phy": {
+                        "type": "string"
+                    },
+                    "path": {
                         "type": "string"
                     },
                     "channel": {
